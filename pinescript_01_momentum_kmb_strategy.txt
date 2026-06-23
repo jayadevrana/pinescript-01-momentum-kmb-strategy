@@ -1,0 +1,63 @@
+//@version=5
+strategy("01 Momentum KMB Strategy", overlay=true, max_labels_count=500,process_orders_on_close = true)
+
+// EMA Settings
+ema_length = input.int(20, minval=1, maxval=200, title="EMA Length")
+ema_source = input.source(close, "EMA Source")
+
+// Calculate Indicator Line
+indicator_value = ta.ema(ema_source, ema_length)
+
+// Trend Detection
+trend_length = input.int(50, minval=20, maxval=200, title="Trend Length")
+trend_up = ta.rising(close, trend_length)
+trend_down = ta.falling(close, trend_length)
+no_trend = not trend_up and not trend_down
+
+// Volume Analysis
+volume_length = input.int(20, minval=5, maxval=100, title="Volume Average Length")
+volume_spike_multiplier = input.float(1.5, minval=1.0, maxval=5.0, step=0.1, title="Volume Spike Multiplier")
+avg_volume = ta.sma(volume, volume_length)
+volume_spike = volume > avg_volume * volume_spike_multiplier
+
+// // Entry and Exit Conditions
+// long_condition = close > indicator_value  and volume_spike
+// short_condition = close < indicator_value and volume_spike
+
+
+
+
+// Entry Conditions
+long_condition = close > indicator_value and trend_up and volume_spike
+short_condition = close < indicator_value and trend_down and volume_spike
+
+// Exit Tracking
+var float last_long_exit = na
+var float last_short_exit = na
+
+// Update Exit Tracking
+if (long_condition)
+    last_long_exit := close
+else if (close < indicator_value or trend_down)
+    last_long_exit := close
+
+if (short_condition)
+    last_short_exit := close
+else if (close > indicator_value or trend_up)
+    last_short_exit := close
+
+// Plot Lines
+plot(indicator_value, color=color.blue, linewidth=2, title="Indicator Line")
+plot(last_long_exit, color=color.purple, linewidth=2, title="Long Exit Line")
+plot(last_short_exit, color=color.black, linewidth=2, title="Short Exit Line")
+
+// Execute Trades
+if (last_long_exit == last_long_exit[1] and low > last_long_exit)
+    strategy.entry("Long", strategy.long)
+
+if (last_short_exit == last_short_exit[1] and high < last_short_exit)
+    strategy.entry("Short", strategy.short)
+
+// Exiting conditions for the strategy
+strategy.close("Long", when = close < indicator_value or trend_down)
+strategy.close("Short", when = close > indicator_value or trend_up)
